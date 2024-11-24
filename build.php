@@ -1,172 +1,156 @@
 <?php
-/// by CzechPMDevs
+/*
+ * Copyright (c) Jan Sohn / xxAROX
+ * All rights reserved.
+ * I don't want anyone to use my source code without permission.
+ */
 declare(strict_types=1);
-require_once __DIR__ . '/vendor/autoload.php';
-const ENCODE_PLUGIN = true;
-define("LOCAL_SERVER_PATH", "C:/Users/" . getenv("USERNAME") . "/Desktop/pmmp4"); // string|null
-#define("LOCAL_SERVER_PATH", "null"); // string|null
-const PLUGIN_DESCRIPTION_FILE = "plugin.yml";
-$pluginDescription = yaml_parse_file(__DIR__ . DIRECTORY_SEPARATOR . PLUGIN_DESCRIPTION_FILE);
-$mainClass = $pluginDescription["main"];
-$splitNamespace = explode("\\", $mainClass);
-$mainClass = array_pop($splitNamespace);
-$pluginNamespace = implode("\\", $splitNamespace);
-const WORKSPACE_DIRECTORY = "out";
-define("OUTPUT_FILE", (str_starts_with(strtolower(PHP_OS), 'win') ? WORKSPACE_DIRECTORY . "\\" : "") . $pluginDescription["name"] . ".phar");
-
-const COMPOSER_DIR = "vendor";
-const SOURCES_FILE = "src";
-const RESOURCES_FILE = "resources";
-const INCLUDED_VIRIONS = [];
-
-chdir("..");
-if(file_exists(__DIR__ . "/out")) {
-    out("Cleaning workspace...");
-    cleanDirectory(__DIR__ . DIRECTORY_SEPARATOR . WORKSPACE_DIRECTORY);
-}
-
-out("Building phar from sources...");
-
+set_time_limit(0);
+ini_set("memory_limit", "-1");
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+$localServerPath = "C:/Users/" . getenv("USERNAME") . "/Desktop/pmmp5"; // string|null
+$NAMESPACE = "bedrockcloud/cloudbridge";
+$packages = [
+];
+$encode = false;
+$enable_version_suffix = false;
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+echo "[INFO]: Updating autoloader" . PHP_EOL;
+passthru("composer  --no-dev --no-interaction dump-autoload -o", $result_code);
+if ($result_code != 0) throw new ErrorException("Error while updated autoloader.");
+$loader = include_once __DIR__ . "/vendor/autoload.php";
 $startTime = microtime(true);
-
-@mkdir(__DIR__ . DIRECTORY_SEPARATOR . WORKSPACE_DIRECTORY);
-@mkdir(__DIR__ . DIRECTORY_SEPARATOR . WORKSPACE_DIRECTORY . "/" . SOURCES_FILE);;
-if (RESOURCES_FILE !== "") @mkdir(__DIR__ . DIRECTORY_SEPARATOR . WORKSPACE_DIRECTORY . "/" . RESOURCES_FILE);
-if(!is_file(__DIR__ . DIRECTORY_SEPARATOR . PLUGIN_DESCRIPTION_FILE)) {
-    out("Plugin description file not found. Cancelling the process..");
-    return;
-}
-
-
-$sourceReplacements = [];
-$virionReplacements = [];
-foreach(INCLUDED_VIRIONS as $composerPath => $namespace) {
-    $sourceReplacements[0][] = "use $namespace";
-    $sourceReplacements[1][] = "use $pluginNamespace\\libraries\\$namespace";
-
-    $virionReplacements[$composerPath][0][] = "namespace $namespace";
-    $virionReplacements[$composerPath][0][] = "use $namespace";
-    $virionReplacements[$composerPath][1][] = "namespace $pluginNamespace\\libraries\\$namespace";
-    $virionReplacements[$composerPath][1][] = "use $pluginNamespace\\libraries\\$namespace";
-    foreach(INCLUDED_VIRIONS as $virionComposerPath => $virionNamespace) {
-        if ($composerPath === $virionComposerPath) continue;
-        $virionReplacements[$composerPath][0][] = "use $virionNamespace";
-        $virionReplacements[$composerPath][1][] = "use $pluginNamespace\\libraries\\$virionNamespace";
-    }
-}
-
-// Copying plugin.yml
-copy(__DIR__ . DIRECTORY_SEPARATOR . PLUGIN_DESCRIPTION_FILE, __DIR__ . DIRECTORY_SEPARATOR . WORKSPACE_DIRECTORY . "/" . PLUGIN_DESCRIPTION_FILE);
-if (is_file("LICENSE")) file_put_contents("LICENSE", file_get_contents(WORKSPACE_DIRECTORY . "/LICENSE"));
-if (is_file("README.md")) file_put_contents("README.md", file_get_contents(WORKSPACE_DIRECTORY . "/README.md"));
-if (RESOURCES_FILE !== "") copyDirectory(RESOURCES_FILE, WORKSPACE_DIRECTORY, fn (string $content) => $content, fn(string $path) => $path);
-
-// Copying plugin /src/...
-copyDirectory(
-    SOURCES_FILE,
-    WORKSPACE_DIRECTORY,
-    fn(string $file) => str_replace($sourceReplacements[0], $sourceReplacements[1], $file),
-    fn(string $path) => str_replace(SOURCES_FILE, SOURCES_FILE . DIRECTORY_SEPARATOR, $path)
-);
-
-
-// Copying libraries
-if(count(INCLUDED_VIRIONS) > 0) {
-    out("Including libraries used...");
-    foreach(INCLUDED_VIRIONS as $composerPath => $namespace) {
-        if (!is_dir(__DIR__ . DIRECTORY_SEPARATOR . COMPOSER_DIR . "/" . $composerPath . "/" . SOURCES_FILE)) {
-            out("Composer package '$composerPath' not found!");
-            continue;
+$from = getcwd() . DIRECTORY_SEPARATOR;
+$description = yaml_parse_file($from . "plugin.yml");
+$to = __DIR__ . DIRECTORY_SEPARATOR . "out" . DIRECTORY_SEPARATOR . $description["name"] . DIRECTORY_SEPARATOR;
+$outputPath = $from . "out" . DIRECTORY_SEPARATOR . $description["name"] . ($enable_version_suffix
+        ? "_v" . $description["version"] : "");
+echo "[INFO]: Starting.." . PHP_EOL;
+@mkdir($to, 0777, true);
+cleanDirectory($to);
+// include all important files
+if (is_dir($from . "src"))
+    copyDirectory($from . "src", $to . "src/${NAMESPACE}");
+if (is_file($from . "LICENSE"))
+    file_put_contents($to . "LICENSE", file_get_contents($from . "LICENSE"));
+if (is_file($from . "README.md"))
+    file_put_contents($to . "README.md", file_get_contents($from . "README.md"));
+if (is_dir($from . "resources"))
+    copyDirectory($from . "resources", $to . "resources");
+yaml_emit_file($to . "plugin.yml", $description);
+// include all packages
+foreach ($packages as $vendor => $obj) {
+    if (str_ends_with($vendor, "/")) $vendor = substr($vendor, 0, -1);
+    foreach ($obj["paths"] as $paths) {
+        foreach ($paths as $from2 => $to2) {
+            if (is_dir($from . "vendor/$vendor")) copyDirectory($from . "vendor/$vendor/$from2", $to . $to2);
+            else throw new RuntimeException("Package '$vendor' is not installed.");
         }
-        $directory = COMPOSER_DIR . DIRECTORY_SEPARATOR . $composerPath . DIRECTORY_SEPARATOR . SOURCES_FILE;
-        out("Adding $composerPath");
-        $replace = "";
-        if (!file_exists(__DIR__ . DIRECTORY_SEPARATOR . $directory . "/" . str_replace("\\", "/", $namespace)))
-            $replace = str_replace("\\", "/", $namespace);
-
-        copyLibraries(
-            $directory,
-            WORKSPACE_DIRECTORY . DIRECTORY_SEPARATOR . SOURCES_FILE . DIRECTORY_SEPARATOR . $pluginNamespace . "/libraries",
-            fn (string $file) => str_replace($virionReplacements[$composerPath][0], $virionReplacements[$composerPath][1], $file),
-            fn (string $path) => str_replace(COMPOSER_DIR . DIRECTORY_SEPARATOR . $composerPath . DIRECTORY_SEPARATOR . SOURCES_FILE, $replace, $path)
-        );
     }
 }
-/*out("Encoding content..");
-if (ENCODE_PLUGIN) (new xxAROX\PluginSecurity\Encoder(WORKSPACE_DIRECTORY . DIRECTORY_SEPARATOR . SOURCES_FILE))->encode();
-return;*/
+echo "[INFO]: Included " . count($packages) . " package" . (count($packages) == 1 ? "" : "s") . PHP_EOL;
+// plugin encoder
+$excluded = [];
+foreach ($packages as $vendor => $obj) {
+    if ($obj["encode"] ?? false)
+        $excluded[] = $vendor . "/";
+}
+echo "[INFO]: Encoding plugin.." . PHP_EOL;
+if ($encode) {
+    echo "[INFO]: Encoding plugin.." . PHP_EOL;
+    require_once "vendor/xxflorii/plugin-security/src/Encoder.php";
+    (new \xxAROX\PluginSecurity\Encoder($to, $excluded))->encode();
+    echo "[INFO]: Encoding done!" . PHP_EOL;
+    $to = $to . "/output";
+}
+echo "[INFO]: Encoding done!" . PHP_EOL;
+generatePhar($outputPath, $to);
+if (!empty($localServerPath) && is_dir($localServerPath . "/plugins")) {
+    echo "[INFO]: Compiling.." . PHP_EOL;
+    generatePhar($localServerPath . "/plugins/" . $description["name"] . ($enable_version_suffix
+            ? "_v" . $description["version"] : ""), $to);
+}
+/**
+ * Function copyDirectory
+ * @param string $from
+ * @param string $to
+ * @param array $ignoredFiles
+ * @return void
+ */
+function copyDirectory(string $from, string $to, array $ignoredFiles = []): void{
+    @mkdir($to, 0777, true);
+    if (is_file($from)) {
+        $files = [$from];
+    } else {
+        $ignoredFiles = array_map(fn(string $path) => str_replace("/", "\\", $path), $ignoredFiles);
+        $files = new RecursiveIteratorIterator(new RecursiveCallbackFilterIterator(new RecursiveDirectoryIterator($from, FilesystemIterator::SKIP_DOTS), function (SplFileInfo $fileInfo, $key, $iterator) use ($from, $ignoredFiles): bool{
+            if (!empty($ignoredFiles)) {
+                $path = str_replace("/", "\\", $fileInfo->getPathname());
+                foreach ($ignoredFiles as $ignoredFile) {
+                    if (str_starts_with($path, $ignoredFile)) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }), RecursiveIteratorIterator::SELF_FIRST);
+    }
+    /** @var SplFileInfo $fileInfo */
+    foreach ($files as $fileInfo) {
+        $target = str_replace($from, $to, $fileInfo->getPathname());
+        if ($fileInfo->isDir()) {
+            @mkdir($target, 0777, true);
+        } else {
+            $contents = file_get_contents($fileInfo->getPathname());
+            file_put_contents($target, $contents);
+        }
+    }
+}
 
-out("Packing phar file..");
-buildPhar(__DIR__ . DIRECTORY_SEPARATOR . OUTPUT_FILE ?? "output.phar");
-function buildPhar(string $to): void{
-    $phar = new Phar($to);
-    $phar->buildFromDirectory(__DIR__ . DIRECTORY_SEPARATOR . WORKSPACE_DIRECTORY);
+/**
+ * Function cleanDirectory
+ * @param string $directory
+ * @return void
+ */
+function cleanDirectory(string $directory): void{
+    $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);
+    /** @var SplFileInfo $fileInfo */
+    foreach ($files as $fileInfo) {
+        if ($fileInfo->isDir()) {
+            rmdir($fileInfo->getPathname());
+        } else {
+            unlink($fileInfo->getPathname());
+        }
+    }
+}
+
+/**
+ * Function generatePhar
+ * @param string $outputPath
+ * @param string $to
+ * @return void
+ */
+function generatePhar(string $outputPath, string $to): void{
+    echo "[INFO]: Building Phar in '$to'" . PHP_EOL;
+    global $startTime;
+    @unlink($outputPath . ".phar");
+    $phar = new Phar($outputPath . ".phar");
+    while (true) {
+        try {
+            $phar->buildFromDirectory($to);
+            break;
+        } catch (PharException $e) {
+        }
+        echo "Cannot access to file, file is used" . PHP_EOL;
+        sleep(2);
+    }
+    $phar->buildFromDirectory($to);
     $phar->addFromString("C:/.lock", "This cause the devtools extract error");
     $phar->setSignatureAlgorithm(Phar::SHA512, "bdc70a4aeec173d80eae3f853019fda7270f32f78fc2590d7082a888b76365e923efcdcba6117a977c17a76f82c79a6dcbda1dfc097b6380839087a3d54dbb7f");
     $phar->compressFiles(Phar::GZ);
-}
-if (is_dir(LOCAL_SERVER_PATH)) buildPhar(LOCAL_SERVER_PATH . DIRECTORY_SEPARATOR . "plugins" . DIRECTORY_SEPARATOR . (explode("\\", OUTPUT_FILE)[1] ?? "output.phar"));
-out("Done (took " . round(microtime(true) - $startTime, 3) . " seconds)");
-if (is_dir(LOCAL_SERVER_PATH)) startServer();
-
-
-function copyDirectory(string $directory, string $targetFolder, Closure $modifyFileClosure, Closure $modifyPathClosure): void {
-    $targetFolder = __DIR__ . DIRECTORY_SEPARATOR . $targetFolder;
-    @mkdir($targetFolder, 0777, true);
-    /** @var SplFileInfo $file */
-    foreach(new RecursiveIteratorIterator(new RecursiveDirectoryIterator(__DIR__ . DIRECTORY_SEPARATOR . $directory, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::SELF_FIRST) as $file) {
-        $targetPath = slashesToBackslashes($modifyPathClosure($targetFolder . "/" . str_replace(__DIR__ . DIRECTORY_SEPARATOR, "", $file->getPath()) . "/" . $file->getFilename()));
-        if ($file->isFile()) {
-            @mkdir(dirname($targetPath), 0777, true);
-            file_put_contents(
-                slashesToBackslashes(__DIR__ . DIRECTORY_SEPARATOR . str_replace(__DIR__ . DIRECTORY_SEPARATOR, "", $targetPath)),
-                $modifyFileClosure(file_get_contents(slashesToBackslashes($file->getPath() . "/" . $file->getFilename())))
-            );
-        } else @mkdir(dirname($targetPath), 0777, true);
-    }
-}
-function copyLibraries(string $directory, string $targetFolder, Closure $modifyFileClosure, Closure $modifyPathClosure): void {
-    $targetFolder = __DIR__ . DIRECTORY_SEPARATOR . $targetFolder;
-    @mkdir($targetFolder, 0777, true);
-    /** @var SplFileInfo $file */
-    foreach(new RecursiveIteratorIterator(new RecursiveDirectoryIterator(__DIR__ . DIRECTORY_SEPARATOR . $directory, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::SELF_FIRST) as $file) {
-        $targetPath = slashesToBackslashes($modifyPathClosure($targetFolder . "/" . str_replace(__DIR__ . DIRECTORY_SEPARATOR, "", $file->getPath()) . "/" . $file->getFilename()));
-        if ($file->isFile()) {
-            @mkdir(dirname($targetPath), 0777, true);
-            file_put_contents(
-                slashesToBackslashes(__DIR__ . DIRECTORY_SEPARATOR . str_replace(__DIR__ . DIRECTORY_SEPARATOR, "", $targetPath)),
-                $modifyFileClosure(file_get_contents(slashesToBackslashes($file->getPath() . "/" . $file->getFilename())))
-            );
-        } else @mkdir(dirname($targetPath), 0777, true);
-    }
-}
-
-function cleanDirectory(string $directory): void {
-    /** @var SplFileInfo $file */
-    foreach(new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST) as $file) {
-        if($file->isFile()) {
-            unlink($file->getPath() . "/" . $file->getFilename());
-        } else {
-            rmdir($file->getPath() . "/" . $file->getFilename());
-        }
-    }
-}
-
-function out(string $message): void {
-    echo "[" . gmdate("H:i:s") . "] " . $message . "\n";
-}
-
-
-/**
- * Function startServer
- * @return void
- */
-function startServer(): void{
-    if (!is_dir(LOCAL_SERVER_PATH)) return;
-    if (!is_file(LOCAL_SERVER_PATH . "/start.bat")) return;
-    popen("start " . LOCAL_SERVER_PATH . "/start.bat", "r");
-    exit;
-}
-function slashesToBackslashes(string $raw): string{
-    return str_starts_with(strtolower(PHP_OS), "win") ? str_replace("/", "\\", $raw) : str_replace("\\", "/", $raw);
+    echo "[INFO]: Built in " . round(microtime(true) - $startTime, 3) . " seconds! Output path: {$outputPath}.phar" . PHP_EOL;
 }
