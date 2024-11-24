@@ -1,0 +1,5 @@
+{
+    "require": {
+        "pocketmine/snooze": "^0.5.0"
+    }
+}

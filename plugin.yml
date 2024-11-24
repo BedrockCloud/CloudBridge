@@ -1,0 +1,5 @@
+name: CloudBridge
+version: 2.0.0
+api: 5.0.0
+main: bedrockcloud\cloudbridge\CloudBridge
+authors: ["xxFLORII", "r3pt1s"]
