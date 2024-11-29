@@ -2,6 +2,8 @@
 
 namespace bedrockcloud\cloudbridge\network\packet\pool;
 
+use bedrockcloud\cloudbridge\network\packet\impl\request\CheckPlayerExistsRequestPacket;
+use bedrockcloud\cloudbridge\network\packet\impl\response\CheckPlayerExistsResponsePacket;
 use GlobalLogger;
 use bedrockcloud\cloudbridge\network\packet\CloudPacket;
 use bedrockcloud\cloudbridge\network\packet\impl\normal\CloudNotifyPacket;
@@ -75,6 +77,8 @@ class PacketPool {
         $this->registerPacket(CheckPlayerMaintenanceResponsePacket::class);
         $this->registerPacket(CheckPlayerNotifyRequestPacket::class);
         $this->registerPacket(CheckPlayerNotifyResponsePacket::class);
+        $this->registerPacket(CheckPlayerExistsRequestPacket::class);
+        $this->registerPacket(CheckPlayerExistsResponsePacket::class);
         $this->registerPacket(CloudNotifyPacket::class);
         $this->registerPacket(ModuleSyncPacket::class);
         $this->registerPacket(LibrarySyncPacket::class);
