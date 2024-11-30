@@ -32,6 +32,14 @@ class CloudPlayer {
         return $this->host;
     }
 
+    /**
+     * @return string
+     */
+    public function getAddress(): string
+    {
+        return $this->address;
+    }
+
     public function getXboxUserId(): string {
         return $this->xboxUserId;
     }
