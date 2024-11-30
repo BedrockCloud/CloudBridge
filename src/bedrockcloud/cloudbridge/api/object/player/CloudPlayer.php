@@ -17,6 +17,7 @@ class CloudPlayer {
     public function __construct(
         private readonly string $name,
         private readonly string $host,
+        private readonly string $address,
         private readonly string $xboxUserId,
         private readonly string $uniqueId,
         private ?CloudServer $currentServer = null,
@@ -97,6 +98,7 @@ class CloudPlayer {
         return [
             "name" => $this->name,
             "host" => $this->host,
+            "address" => $this->address,
             "xboxUserId" => $this->xboxUserId,
             "uniqueId" => $this->uniqueId,
             "currentServer" => $this->getCurrentServer()?->getName(),
@@ -105,10 +107,11 @@ class CloudPlayer {
     }
 
     public static function fromArray(array $player): ?CloudPlayer {
-        if (!Utils::containKeys($player, "name", "host", "xboxUserId", "uniqueId")) return null;
+        if (!Utils::containKeys($player, "name", "host", "address", "xboxUserId", "uniqueId")) return null;
         return new CloudPlayer(
             $player["name"],
             $player["host"],
+            $player["address"],
             $player["xboxUserId"],
             $player["uniqueId"],
             (!isset($player["currentServer"]) ? null : CloudAPI::serverProvider()->getServer($player["currentServer"])),
@@ -117,6 +120,6 @@ class CloudPlayer {
     }
 
     public static function fromPlayer(Player $player): CloudPlayer {
-        return new CloudPlayer($player->getName(), $player->getNetworkSession()->getIp() . ":" . $player->getNetworkSession()->getPort(), $player->getXuid(), $player->getUniqueId()->toString(), CloudAPI::serverProvider()->current());
+        return new CloudPlayer($player->getName(), $player->getNetworkSession()->getIp() . ":" . $player->getNetworkSession()->getPort(), $player->getNetworkSession()->getIp(), $player->getXuid(), $player->getUniqueId()->toString(), CloudAPI::serverProvider()->current());
     }
 }
